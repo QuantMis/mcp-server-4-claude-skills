@@ -1,0 +1,36 @@
+# One-click run:  docker compose up -d --build
+#
+# The only thing you must supply is SKILLS_MCP_BEARER_TOKEN (in a .env file
+# next to this one — see .env.example). Everything else has sane defaults.
+services:
+  skills-mcp:
+    build: .
+    image: skills-mcp:latest
+    container_name: skills-mcp
+    restart: unless-stopped
+    environment:
+      # Substituted from the .env file in this directory. Compose errors out
+      # with the message below if it is unset — the server needs it to start.
+      SKILLS_MCP_BEARER_TOKEN: ${SKILLS_MCP_BEARER_TOKEN:?set SKILLS_MCP_BEARER_TOKEN in .env}
+      # DB lives on the named volume; do not point this elsewhere.
+      SKILLS_MCP_DB_PATH: /data/skills.db
+      SKILLS_MCP_HOST: 0.0.0.0
+      SKILLS_MCP_PORT: 8080
+    ports:
+      # host:container. Override the host port with HOST_PORT in .env.
+      - "${HOST_PORT:-8080}:8080"
+    volumes:
+      - skills-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import socket,sys; s=socket.socket(); s.settimeout(2); sys.exit(s.connect_ex(('127.0.0.1',8080)))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  skills-data:

@@ -80,8 +80,28 @@ SMOKE_URL=http://127.0.0.1:8080/mcp python scripts/smoke_test.py
 
 ## Deploy
 
-Build and run behind the existing OAuth proxy, as one additional service
-beside `wiki`:
+### One-click: Docker Compose (recommended)
+
+```bash
+cp .env.example .env
+# set SKILLS_MCP_BEARER_TOKEN in .env  (generate one: openssl rand -hex 32)
+
+docker compose up -d --build
+```
+
+That's it. Compose builds the image, creates the `skills-data` volume, and
+starts the server (with a healthcheck and `restart: unless-stopped`). It
+listens on `http://localhost:8080/mcp` — change the published port with
+`HOST_PORT` in `.env`.
+
+```bash
+docker compose logs -f        # follow logs
+docker compose ps             # status (shows healthy)
+docker compose down           # stop (keeps the volume / data)
+docker compose down -v        # stop and delete the data volume
+```
+
+### Manual docker run
 
 ```bash
 docker build -t skills-mcp .
@@ -92,7 +112,10 @@ docker run -d --name skills-mcp \
   skills-mcp
 ```
 
-The SQLite file lives on the `/data` volume so it survives redeploys.
+Either way the SQLite file lives on the `skills-data` volume, so it survives
+redeploys. Put this behind your reverse proxy / OAuth proxy to terminate TLS
+for `https://skills.codedancoffee.com/mcp`; the container itself speaks plain
+HTTP on 8080.
 
 ## Client setup (per machine, once)
 
