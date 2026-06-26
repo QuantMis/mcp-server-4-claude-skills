@@ -14,7 +14,7 @@ def test_load_minimal_uses_defaults():
     assert cfg.bearer_token == "secret"
     assert cfg.db_path == "./skills.db"
     assert cfg.host == "0.0.0.0"
-    assert cfg.port == 8080
+    assert cfg.port == 8765
 
 
 def test_load_full_override():

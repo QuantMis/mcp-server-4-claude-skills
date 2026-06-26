@@ -53,7 +53,7 @@ pip install -e ".[dev]"
 
 cp .env.example .env        # then edit SKILLS_MCP_BEARER_TOKEN
 export $(grep -v '^#' .env | xargs)
-python -m skills_mcp        # serves on http://0.0.0.0:8080/mcp
+python -m skills_mcp        # serves on http://0.0.0.0:8765/mcp
 ```
 
 ### Configuration
@@ -63,7 +63,7 @@ python -m skills_mcp        # serves on http://0.0.0.0:8080/mcp
 | `SKILLS_MCP_BEARER_TOKEN` | **yes** | — | Server refuses to start without it. |
 | `SKILLS_MCP_DB_PATH` | no | `./skills.db` | SQLite file path. |
 | `SKILLS_MCP_HOST` | no | `0.0.0.0` | Bind address. |
-| `SKILLS_MCP_PORT` | no | `8080` | Bind port. |
+| `SKILLS_MCP_PORT` | no | `8765` | Bind port. |
 
 ## Tests
 
@@ -75,7 +75,7 @@ pytest            # unit + integration, coverage gate
 A live end-to-end check (boot the server first, then):
 
 ```bash
-SMOKE_URL=http://127.0.0.1:8080/mcp python scripts/smoke_test.py
+SMOKE_URL=http://127.0.0.1:8765/mcp python scripts/smoke_test.py
 ```
 
 ## Deploy
@@ -91,7 +91,7 @@ docker compose up -d --build
 
 That's it. Compose builds the image, creates the `skills-data` volume, and
 starts the server (with a healthcheck and `restart: unless-stopped`). It
-listens on `http://localhost:8080/mcp` — change the published port with
+listens on `http://localhost:8765/mcp` — change the published port with
 `HOST_PORT` in `.env`.
 
 ```bash
@@ -108,14 +108,14 @@ docker build -t skills-mcp .
 docker run -d --name skills-mcp \
   -e SKILLS_MCP_BEARER_TOKEN=... \
   -v skills-data:/data \
-  -p 8080:8080 \
+  -p 8765:8765 \
   skills-mcp
 ```
 
 Either way the SQLite file lives on the `skills-data` volume, so it survives
 redeploys. Put this behind your reverse proxy / OAuth proxy to terminate TLS
 for `https://skills.codedancoffee.com/mcp`; the container itself speaks plain
-HTTP on 8080.
+HTTP on 8765.
 
 ## Client setup (per machine, once)
 

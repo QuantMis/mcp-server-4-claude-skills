@@ -13,7 +13,7 @@ import os
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
-URL = os.environ.get("SMOKE_URL", "http://127.0.0.1:8080/mcp")
+URL = os.environ.get("SMOKE_URL", "http://127.0.0.1:8765/mcp")
 TOKEN = os.environ["SKILLS_MCP_BEARER_TOKEN"]
 
 

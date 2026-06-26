@@ -5,7 +5,7 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     SKILLS_MCP_HOST=0.0.0.0 \
-    SKILLS_MCP_PORT=8080 \
+    SKILLS_MCP_PORT=8765 \
     SKILLS_MCP_DB_PATH=/data/skills.db
 
 WORKDIR /app
@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir .
 RUN mkdir -p /data
 VOLUME ["/data"]
 
-EXPOSE 8080
+EXPOSE 8765
 
 # SKILLS_MCP_BEARER_TOKEN must be supplied at runtime (e.g. via the OAuth
 # proxy / secret manager). The server refuses to start without it.

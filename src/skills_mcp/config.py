@@ -16,7 +16,7 @@ _PORT_ENV = "SKILLS_MCP_PORT"
 
 _DEFAULT_DB_PATH = "./skills.db"
 _DEFAULT_HOST = "0.0.0.0"
-_DEFAULT_PORT = 8080
+_DEFAULT_PORT = 8765
 
 
 class ConfigError(RuntimeError):
