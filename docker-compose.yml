@@ -16,6 +16,10 @@ services:
       SKILLS_MCP_DB_PATH: /data/skills.db
       SKILLS_MCP_HOST: 0.0.0.0
       SKILLS_MCP_PORT: 8765
+      # Optional defence-in-depth: restrict the accepted Host header to your
+      # public domain(s). Unset -> DNS-rebinding protection off (bearer token
+      # is the gate). See .env.example.
+      SKILLS_MCP_ALLOWED_HOSTS: ${SKILLS_MCP_ALLOWED_HOSTS:-}
     ports:
       # host:container. Override the host port with HOST_PORT in .env.
       - "${HOST_PORT:-8765}:8765"

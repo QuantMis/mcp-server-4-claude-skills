@@ -13,6 +13,7 @@ _BEARER_ENV = "SKILLS_MCP_BEARER_TOKEN"
 _DB_PATH_ENV = "SKILLS_MCP_DB_PATH"
 _HOST_ENV = "SKILLS_MCP_HOST"
 _PORT_ENV = "SKILLS_MCP_PORT"
+_ALLOWED_HOSTS_ENV = "SKILLS_MCP_ALLOWED_HOSTS"
 
 _DEFAULT_DB_PATH = "./skills.db"
 _DEFAULT_HOST = "0.0.0.0"
@@ -31,6 +32,7 @@ class Config:
     db_path: str
     host: str
     port: int
+    allowed_hosts: tuple[str, ...] = ()
 
 
 def load_config(env: dict[str, str] | None = None) -> Config:
@@ -57,9 +59,16 @@ def load_config(env: dict[str, str] | None = None) -> Config:
     if not 0 < port < 65536:
         raise ConfigError(f"{_PORT_ENV} must be in 1..65535, got {port}")
 
+    allowed_hosts = tuple(
+        h.strip()
+        for h in (source.get(_ALLOWED_HOSTS_ENV) or "").split(",")
+        if h.strip()
+    )
+
     return Config(
         bearer_token=token,
         db_path=(source.get(_DB_PATH_ENV) or "").strip() or _DEFAULT_DB_PATH,
         host=(source.get(_HOST_ENV) or "").strip() or _DEFAULT_HOST,
         port=port,
+        allowed_hosts=allowed_hosts,
     )

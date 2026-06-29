@@ -50,5 +50,89 @@ async def test_authenticated_request_passes_auth_layer(client):
     assert resp.status_code != 401
 
 
+async def test_authenticated_request_not_blocked_by_host_check(client):
+    # Regression: with no allowed_hosts configured, DNS-rebinding protection
+    # must be OFF so a proxied (non-localhost) Host header does not yield 421.
+    resp = await client.post(
+        "/mcp",
+        headers={
+            "Authorization": f"Bearer {CONFIG.bearer_token}",
+            "Host": "skills.codedancoffee.com",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        },
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "probe", "version": "0"},
+            },
+        },
+    )
+    assert resp.status_code != 421
+
+
+@pytest.fixture()
+async def hardened_client():
+    cfg = Config(
+        bearer_token="test-token",
+        db_path=":memory:",
+        host="127.0.0.1",
+        port=8765,
+        allowed_hosts=("skills.codedancoffee.com",),
+    )
+    app = build_app(cfg)
+    async with LifespanManager(app) as managed:
+        transport = httpx.ASGITransport(app=managed.app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as ac:
+            yield ac
+
+
+def _init_payload():
+    return {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "probe", "version": "0"},
+        },
+    }
+
+
+async def test_hardened_allows_configured_host(hardened_client):
+    resp = await hardened_client.post(
+        "/mcp",
+        headers={
+            "Authorization": "Bearer test-token",
+            "Host": "skills.codedancoffee.com",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        },
+        json=_init_payload(),
+    )
+    assert resp.status_code != 421
+
+
+async def test_hardened_rejects_unknown_host(hardened_client):
+    resp = await hardened_client.post(
+        "/mcp",
+        headers={
+            "Authorization": "Bearer test-token",
+            "Host": "evil.example.com",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        },
+        json=_init_payload(),
+    )
+    assert resp.status_code == 421
+
+
 def test_build_app_returns_callable():
     assert callable(build_app(CONFIG))

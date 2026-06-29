@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .repository import (
     DuplicateSkillError,
@@ -49,10 +50,24 @@ _REVERT_DESC = (
 )
 
 
-def create_mcp(repo: SkillRepository) -> FastMCP:
-    """Build a FastMCP server exposing the five skill tools over ``repo``."""
+def create_mcp(
+    repo: SkillRepository,
+    transport_security: TransportSecuritySettings | None = None,
+) -> FastMCP:
+    """Build a FastMCP server exposing the five skill tools over ``repo``.
 
-    mcp = FastMCP(SERVER_NAME)
+    ``transport_security`` configures DNS-rebinding (Host/Origin) protection.
+    When omitted it defaults to *disabled*: this overrides FastMCP's implicit
+    localhost-only default, which would otherwise reject the proxied public
+    Host header with ``421 Misdirected Request`` behind nginx. Pass an explicit
+    settings object (see ``server.build_app``) to allow-list specific hosts.
+    """
+
+    if transport_security is None:
+        transport_security = TransportSecuritySettings(
+            enable_dns_rebinding_protection=False
+        )
+    mcp = FastMCP(SERVER_NAME, transport_security=transport_security)
 
     @mcp.tool(name="list_skills", description=_LIST_DESC)
     def list_skills() -> list[dict[str, str]]:

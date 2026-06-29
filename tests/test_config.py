@@ -24,6 +24,7 @@ def test_load_full_override():
             "SKILLS_MCP_DB_PATH": "/data/s.db",
             "SKILLS_MCP_HOST": "127.0.0.1",
             "SKILLS_MCP_PORT": "9000",
+            "SKILLS_MCP_ALLOWED_HOSTS": "a.com, b.com",
         }
     )
 
@@ -31,6 +32,22 @@ def test_load_full_override():
     assert cfg.db_path == "/data/s.db"
     assert cfg.host == "127.0.0.1"
     assert cfg.port == 9000
+    assert cfg.allowed_hosts == ("a.com", "b.com")
+
+
+def test_allowed_hosts_default_empty():
+    cfg = load_config({"SKILLS_MCP_BEARER_TOKEN": "t"})
+    assert cfg.allowed_hosts == ()
+
+
+def test_allowed_hosts_trims_and_drops_blanks():
+    cfg = load_config(
+        {
+            "SKILLS_MCP_BEARER_TOKEN": "t",
+            "SKILLS_MCP_ALLOWED_HOSTS": " skills.codedancoffee.com , ,  ",
+        }
+    )
+    assert cfg.allowed_hosts == ("skills.codedancoffee.com",)
 
 
 @pytest.mark.parametrize("env", [{}, {"SKILLS_MCP_BEARER_TOKEN": "   "}])
