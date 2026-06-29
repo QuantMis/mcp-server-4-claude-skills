@@ -7,6 +7,7 @@ Validates required settings eagerly (fail fast) per the security rule:
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 
 _BEARER_ENV = "SKILLS_MCP_BEARER_TOKEN"
@@ -18,6 +19,10 @@ _ALLOWED_HOSTS_ENV = "SKILLS_MCP_ALLOWED_HOSTS"
 _DEFAULT_DB_PATH = "./skills.db"
 _DEFAULT_HOST = "0.0.0.0"
 _DEFAULT_PORT = 8765
+
+# A bare hostname (RFC 1123 chars), optionally suffixed with an explicit
+# ":port" or the ":*" any-port wildcard understood by FastMCP's Host check.
+_HOST_RE = re.compile(r"^[A-Za-z0-9._-]+(:(\d+|\*))?$")
 
 
 class ConfigError(RuntimeError):
@@ -64,6 +69,12 @@ def load_config(env: dict[str, str] | None = None) -> Config:
         for h in (source.get(_ALLOWED_HOSTS_ENV) or "").split(",")
         if h.strip()
     )
+    for host in allowed_hosts:
+        if not _HOST_RE.match(host):
+            raise ConfigError(
+                f"{_ALLOWED_HOSTS_ENV}: {host!r} is not a valid hostname "
+                "(expected e.g. 'skills.example.com', optionally ':port' or ':*')"
+            )
 
     return Config(
         bearer_token=token,

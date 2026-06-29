@@ -19,7 +19,9 @@ def _transport_security(allowed_hosts: tuple[str, ...]) -> TransportSecuritySett
     No configured hosts -> protection disabled (bearer auth is the access
     gate; the server is public and TLS-terminated by nginx). Configured hosts
     -> protection enabled, allow-listing each host (with an ``:*`` port
-    variant) and its http/https origins for defence-in-depth.
+    variant) and its ``https`` origins for defence-in-depth. Plaintext
+    ``http`` origins are deliberately excluded: the public deployment is
+    TLS-only, so no legitimate request carries one.
     """
 
     if not allowed_hosts:
@@ -29,7 +31,7 @@ def _transport_security(allowed_hosts: tuple[str, ...]) -> TransportSecuritySett
     origins: list[str] = []
     for host in allowed_hosts:
         hosts.extend((host, f"{host}:*"))
-        origins.extend((f"https://{host}", f"http://{host}"))
+        origins.extend((f"https://{host}", f"https://{host}:*"))
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=hosts,

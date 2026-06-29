@@ -13,7 +13,24 @@ import pytest
 from asgi_lifespan import LifespanManager
 
 from skills_mcp.config import Config
-from skills_mcp.server import build_app
+from skills_mcp.server import _transport_security, build_app
+
+
+def test_transport_security_disabled_without_hosts():
+    settings = _transport_security(())
+    assert settings.enable_dns_rebinding_protection is False
+
+
+def test_transport_security_hardened_multi_host_https_only():
+    settings = _transport_security(("a.com", "b.com"))
+    assert settings.enable_dns_rebinding_protection is True
+    # both hosts allow-listed, each with an :* port variant
+    for host in ("a.com", "b.com"):
+        assert host in settings.allowed_hosts
+        assert f"{host}:*" in settings.allowed_hosts
+    # origins are https-only — no plaintext origin on a TLS-only deployment
+    assert "https://a.com" in settings.allowed_origins
+    assert all(not o.startswith("http://") for o in settings.allowed_origins)
 
 CONFIG = Config(
     bearer_token="test-token",

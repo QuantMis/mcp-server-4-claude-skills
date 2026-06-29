@@ -50,6 +50,27 @@ def test_allowed_hosts_trims_and_drops_blanks():
     assert cfg.allowed_hosts == ("skills.codedancoffee.com",)
 
 
+@pytest.mark.parametrize(
+    "host", ["skills.codedancoffee.com", "host:8765", "host:*", "a-b_c.example"]
+)
+def test_allowed_hosts_accepts_valid_forms(host):
+    cfg = load_config(
+        {"SKILLS_MCP_BEARER_TOKEN": "t", "SKILLS_MCP_ALLOWED_HOSTS": host}
+    )
+    assert cfg.allowed_hosts == (host,)
+
+
+@pytest.mark.parametrize(
+    "host",
+    ["http://skills.x", "skills.x/path", "a b", "host:port", "has space.com"],
+)
+def test_invalid_allowed_host_raises(host):
+    with pytest.raises(ConfigError):
+        load_config(
+            {"SKILLS_MCP_BEARER_TOKEN": "t", "SKILLS_MCP_ALLOWED_HOSTS": host}
+        )
+
+
 @pytest.mark.parametrize("env", [{}, {"SKILLS_MCP_BEARER_TOKEN": "   "}])
 def test_missing_token_raises(env):
     with pytest.raises(ConfigError):

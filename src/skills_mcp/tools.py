@@ -63,6 +63,8 @@ def create_mcp(
     settings object (see ``server.build_app``) to allow-list specific hosts.
     """
 
+    # The None default is a convenience for direct callers/tests; the
+    # production path (server.build_app) always passes explicit settings.
     if transport_security is None:
         transport_security = TransportSecuritySettings(
             enable_dns_rebinding_protection=False
