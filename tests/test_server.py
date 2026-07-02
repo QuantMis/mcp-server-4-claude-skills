@@ -58,6 +58,19 @@ async def test_unauthenticated_request_blocked_at_mcp_path(client):
     assert resp.status_code == 401
 
 
+async def test_web_ui_served_without_auth(client):
+    # The read-only viewer is mounted outside bearer auth by design.
+    resp = await client.get("/ui")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+
+
+async def test_web_api_served_without_auth(client):
+    resp = await client.get("/api/skills")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 async def test_authenticated_request_passes_auth_layer(client):
     # With a valid token the request is no longer rejected by auth (401);
     # the MCP layer may then return its own status for an incomplete handshake.

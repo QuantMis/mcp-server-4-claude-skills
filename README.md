@@ -45,6 +45,22 @@ config (env, fail-fast)  ->  SQLite (skills + skill_versions, append-only)
 - **Storage:** SQLite single file (no DB server process; zero idle cost).
 - **Auth:** shared bearer token, constant-time comparison.
 
+## Browser viewer
+
+A read-only web page for browsing skills and reading their markdown
+instructions is served alongside the MCP endpoint:
+
+- `GET /ui` — single-page viewer: a searchable list of skills; click one to
+  read its instruction text rendered as markdown.
+- `GET /api/skills` — JSON catalogue (`name` + `description`).
+- `GET /api/skills/{name}` — JSON for one skill (includes full `content`).
+
+The viewer is **read-only** (it exposes only `list`/`get`) and is served
+**outside** bearer auth, so it opens in a browser with no token — while the
+`/mcp` endpoint stays token-protected. Markdown is rendered and sanitised
+client-side. Do not expose the deployment publicly if the skill content is
+sensitive.
+
 ## Run locally
 
 ```bash
@@ -53,7 +69,7 @@ pip install -e ".[dev]"
 
 cp .env.example .env        # then edit SKILLS_MCP_BEARER_TOKEN
 export $(grep -v '^#' .env | xargs)
-python -m skills_mcp        # serves on http://0.0.0.0:8765/mcp
+python -m skills_mcp        # MCP on http://0.0.0.0:8765/mcp, viewer on /ui
 ```
 
 ### Configuration
