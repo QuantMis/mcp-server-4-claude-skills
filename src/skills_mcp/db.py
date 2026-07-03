@@ -1,10 +1,12 @@
 """SQLite connection and schema management.
 
-Two tables (plan section 4):
+Three tables (plan section 4):
 
 * ``skills``         — current state, keyed by ``name``.
 * ``skill_versions`` — append-only history; every update snapshots the prior
   content here so that overwrites and mistakes are always recoverable.
+* ``skill_tags``     — many-to-many grouping labels; current-state metadata,
+  not versioned content, so it sits outside the append-only invariant.
 """
 
 from __future__ import annotations
@@ -29,6 +31,16 @@ CREATE TABLE IF NOT EXISTS skill_versions (
 
 CREATE INDEX IF NOT EXISTS idx_skill_versions_name
     ON skill_versions (name, id);
+
+CREATE TABLE IF NOT EXISTS skill_tags (
+    name TEXT NOT NULL,
+    tag  TEXT NOT NULL,
+    PRIMARY KEY (name, tag),
+    FOREIGN KEY (name) REFERENCES skills (name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_skill_tags_tag
+    ON skill_tags (tag);
 """
 
 

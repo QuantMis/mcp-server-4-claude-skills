@@ -33,9 +33,31 @@ async def test_list_skills_returns_index(mcp, repo):
     result = (await _structured(mcp, "list_skills", {}))["result"]
 
     assert result == [
-        {"name": "alpha", "description": "Alpha summary"},
-        {"name": "beta", "description": "Beta summary"},
+        {"name": "alpha", "description": "Alpha summary", "tags": []},
+        {"name": "beta", "description": "Beta summary", "tags": []},
     ]
+
+
+async def test_list_skills_includes_tags(mcp, repo):
+    repo.register("alpha", "d", "c", tags=["ops", "ci"])
+
+    result = (await _structured(mcp, "list_skills", {}))["result"]
+
+    assert result == [{"name": "alpha", "description": "d", "tags": ["ci", "ops"]}]
+
+
+async def test_list_skills_filters_by_tag(mcp, repo):
+    repo.register("alpha", "d", "c", tags=["planka"])
+    repo.register("beta", "d", "c", tags=["codebase"])
+
+    result = (await _structured(mcp, "list_skills", {"tag": "planka"}))["result"]
+
+    assert [s["name"] for s in result] == ["alpha"]
+
+
+async def test_list_skills_blank_tag_raises(mcp):
+    with pytest.raises(ToolError):
+        await mcp.call_tool("list_skills", {"tag": "   "})
 
 
 async def test_list_skills_empty(mcp):
@@ -122,8 +144,42 @@ async def test_revert_missing_raises(mcp):
         await mcp.call_tool("revert_skill", {"name": "ghost"})
 
 
+# ------------------------------------------------------------------- tag tools
+async def test_register_skill_with_tags(mcp, repo):
+    result = await _structured(
+        mcp,
+        "register_skill",
+        {"name": "new", "description": "d", "content": "c", "tags": ["ops", "ci"]},
+    )
+
+    assert result == {"ok": True}
+    assert repo.get("new").tags == ("ci", "ops")
+
+
+async def test_set_skill_tags_replaces(mcp, repo):
+    repo.register("note", "d", "c", tags=["old"])
+
+    result = await _structured(
+        mcp, "set_skill_tags", {"name": "note", "tags": ["new"]}
+    )
+
+    assert result == {"ok": True}
+    assert repo.get("note").tags == ("new",)
+
+
+async def test_set_skill_tags_missing_raises(mcp):
+    with pytest.raises(ToolError):
+        await mcp.call_tool("set_skill_tags", {"name": "ghost", "tags": ["x"]})
+
+
+async def test_set_skill_tags_blank_tag_raises(mcp, repo):
+    repo.register("note", "d", "c")
+    with pytest.raises(ToolError):
+        await mcp.call_tool("set_skill_tags", {"name": "note", "tags": ["  "]})
+
+
 # ----------------------------------------------------- descriptions (the lever)
-async def test_all_five_tools_are_registered(mcp):
+async def test_all_six_tools_are_registered(mcp):
     names = {t.name for t in await mcp.list_tools()}
     assert names == {
         "list_skills",
@@ -131,6 +187,7 @@ async def test_all_five_tools_are_registered(mcp):
         "register_skill",
         "update_skill",
         "revert_skill",
+        "set_skill_tags",
     }
 
 

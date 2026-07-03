@@ -26,16 +26,17 @@ so mistakes are always recoverable.
 
 | Tool | Signature | Caller | Behaviour |
 |---|---|---|---|
-| `list_skills` | `() -> [{name, description}]` | Claude, at task start | Lightweight catalogue index. |
+| `list_skills` | `(tag?) -> [{name, description, tags}]` | Claude, at task start | Lightweight catalogue index; optional `tag` filter narrows to one group. |
 | `get_skill` | `(name) -> {name, content}` | Claude, on match | Full instruction text for one skill. |
-| `register_skill` | `(name, description, content) -> {ok}` | You, conversationally | Creates a new skill; refuses on name collision. |
+| `register_skill` | `(name, description, content, tags?) -> {ok}` | You, conversationally | Creates a new skill; refuses on name collision. |
 | `update_skill` | `(name, content) -> {ok}` | You, conversationally | Snapshots prior version, then overwrites. |
 | `revert_skill` | `(name) -> {ok}` | You | Restores the most recent prior version. |
+| `set_skill_tags` | `(name, tags) -> {ok}` | You, conversationally | Replaces a skill's full tag set. Tags are lowercase grouping labels (many-to-many, not versioned). |
 
 ## Architecture
 
 ```
-config (env, fail-fast)  ->  SQLite (skills + skill_versions, append-only)
+config (env, fail-fast)  ->  SQLite (skills + skill_versions (append-only) + skill_tags)
         ->  SkillRepository  ->  FastMCP tools  ->  Streamable HTTP app
         ->  BearerAuthMiddleware  ->  ASGI (uvicorn)
 ```

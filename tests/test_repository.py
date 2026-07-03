@@ -160,3 +160,103 @@ def test_revert_missing_skill_raises(repo: SkillRepository):
 def test_history_missing_skill_raises(repo: SkillRepository):
     with pytest.raises(SkillNotFoundError):
         repo.history("ghost")
+
+
+# ------------------------------------------------------------------------ tags
+def test_register_with_tags_roundtrip(repo: SkillRepository):
+    repo.register("deploy", "d", "c", tags=["ops", "ci"])
+
+    assert repo.get("deploy").tags == ("ci", "ops")
+
+
+def test_register_defaults_to_no_tags(repo: SkillRepository):
+    repo.register("deploy", "d", "c")
+
+    assert repo.get("deploy").tags == ()
+
+
+def test_tags_are_normalised_and_deduplicated(repo: SkillRepository):
+    repo.register("deploy", "d", "c", tags=["  Ops ", "ops", "CI"])
+
+    assert repo.get("deploy").tags == ("ci", "ops")
+
+
+def test_register_rejects_blank_tag(repo: SkillRepository):
+    with pytest.raises(ValueError):
+        repo.register("deploy", "d", "c", tags=["ops", "   "])
+
+
+def test_register_rejects_bare_string_tags(repo: SkillRepository):
+    # A plain string would iterate per-character and silently store
+    # single-letter tags; the boundary must reject it instead.
+    with pytest.raises(ValueError):
+        repo.register("deploy", "d", "c", tags="ops")
+
+
+def test_set_tags_rejects_bare_string_tags(repo: SkillRepository):
+    repo.register("a", "d", "c")
+    with pytest.raises(ValueError):
+        repo.set_tags("a", "ops")
+
+
+def test_list_includes_tags(repo: SkillRepository):
+    repo.register("a", "da", "ca", tags=["x"])
+    repo.register("b", "db", "cb")
+
+    by_name = {s.name: s.tags for s in repo.list()}
+
+    assert by_name == {"a": ("x",), "b": ()}
+
+
+def test_list_filters_by_tag(repo: SkillRepository):
+    repo.register("a", "da", "ca", tags=["planka"])
+    repo.register("b", "db", "cb", tags=["codebase"])
+    repo.register("c", "dc", "cc", tags=["planka", "codebase"])
+
+    assert [s.name for s in repo.list(tag="planka")] == ["a", "c"]
+
+
+def test_list_filter_matches_case_insensitively(repo: SkillRepository):
+    repo.register("a", "da", "ca", tags=["planka"])
+
+    assert [s.name for s in repo.list(tag="  Planka ")] == ["a"]
+
+
+def test_list_unknown_tag_returns_empty(repo: SkillRepository):
+    repo.register("a", "da", "ca", tags=["x"])
+
+    assert repo.list(tag="nope") == []
+
+
+def test_set_tags_replaces_existing_set(repo: SkillRepository):
+    repo.register("a", "d", "c", tags=["old"])
+
+    repo.set_tags("a", ["new", "fresh"])
+
+    assert repo.get("a").tags == ("fresh", "new")
+
+
+def test_set_tags_empty_clears(repo: SkillRepository):
+    repo.register("a", "d", "c", tags=["old"])
+
+    repo.set_tags("a", [])
+
+    assert repo.get("a").tags == ()
+
+
+def test_set_tags_missing_skill_raises(repo: SkillRepository):
+    with pytest.raises(SkillNotFoundError):
+        repo.set_tags("ghost", ["x"])
+
+
+def test_set_tags_rejects_blank_tag(repo: SkillRepository):
+    repo.register("a", "d", "c")
+    with pytest.raises(ValueError):
+        repo.set_tags("a", [""])
+
+
+def test_update_preserves_tags(repo: SkillRepository):
+    repo.register("a", "d", "v1", tags=["keep"])
+    repo.update("a", "v2")
+
+    assert repo.get("a").tags == ("keep",)

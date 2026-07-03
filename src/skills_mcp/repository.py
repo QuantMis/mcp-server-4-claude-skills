@@ -39,6 +39,7 @@ class Skill:
     description: str
     content: str
     updated_at: str
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class SkillSummary:
 
     name: str
     description: str
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,15 @@ def _clean(value: str, field: str) -> str:
     return value.strip()
 
 
+def _clean_tags(tags: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+    """Normalise tags to a sorted, deduplicated tuple of lowercase labels."""
+    if tags is None:
+        return ()
+    if not isinstance(tags, (list, tuple)):
+        raise ValueError("tags must be a list of non-empty strings")
+    return tuple(sorted({_clean(tag, "tag").lower() for tag in tags}))
+
+
 class SkillRepository:
     """SQLite-backed store for skills and their version history."""
 
@@ -75,12 +86,28 @@ class SkillRepository:
         self._conn = conn
 
     # ------------------------------------------------------------------ reads
-    def list(self) -> list[SkillSummary]:
-        """Return the lightweight catalogue (name + description), sorted."""
+    def list(self, tag: str | None = None) -> list[SkillSummary]:
+        """Return the lightweight catalogue (name, description, tags), sorted.
+
+        ``tag`` optionally narrows the catalogue to skills carrying that tag
+        (matched case-insensitively, same normalisation as writes).
+        """
         rows = self._conn.execute(
             "SELECT name, description FROM skills ORDER BY name"
         ).fetchall()
-        return [SkillSummary(name=r["name"], description=r["description"]) for r in rows]
+        tags_by_name = self._tags_by_name()
+        summaries = [
+            SkillSummary(
+                name=r["name"],
+                description=r["description"],
+                tags=tags_by_name.get(r["name"], ()),
+            )
+            for r in rows
+        ]
+        if tag is None:
+            return summaries
+        wanted = _clean(tag, "tag").lower()
+        return [s for s in summaries if wanted in s.tags]
 
     def get(self, name: str) -> Skill:
         """Return the full skill, or raise :class:`SkillNotFoundError`."""
@@ -95,6 +122,7 @@ class SkillRepository:
             description=row["description"],
             content=row["content"],
             updated_at=row["updated_at"],
+            tags=self._tags_for(name),
         )
 
     def history(self, name: str) -> list[SkillVersion]:
@@ -109,21 +137,42 @@ class SkillRepository:
         ]
 
     # ----------------------------------------------------------------- writes
-    def register(self, name: str, description: str, content: str) -> Skill:
+    def register(
+        self,
+        name: str,
+        description: str,
+        content: str,
+        tags: list[str] | tuple[str, ...] | None = None,
+    ) -> Skill:
         """Create a new skill. Refuses on exact name collision."""
         name = _clean(name, "name")
         description = _clean(description, "description")
         content = _clean(content, "content")
+        clean_tags = _clean_tags(tags)
 
-        try:
-            with self._conn:
+        with self._conn:
+            try:
                 self._conn.execute(
                     "INSERT INTO skills (name, description, content, updated_at) "
                     "VALUES (?, ?, ?, ?)",
                     (name, description, content, _now()),
                 )
-        except sqlite3.IntegrityError as exc:
-            raise DuplicateSkillError(name) from exc
+            except sqlite3.IntegrityError as exc:
+                raise DuplicateSkillError(name) from exc
+            self._insert_tags(name, clean_tags)
+        return self.get(name)
+
+    def set_tags(self, name: str, tags: list[str] | tuple[str, ...]) -> Skill:
+        """Replace the full tag set of an existing skill.
+
+        Tags are current-state metadata, not versioned content, so this does
+        not write to ``skill_versions``.
+        """
+        clean_tags = _clean_tags(tags)
+        with self._conn:
+            self._require_exists(name)
+            self._conn.execute("DELETE FROM skill_tags WHERE name = ?", (name,))
+            self._insert_tags(name, clean_tags)
         return self.get(name)
 
     def update(self, name: str, content: str) -> Skill:
@@ -181,3 +230,24 @@ class SkillRepository:
             "INSERT INTO skill_versions (name, content, created_at) VALUES (?, ?, ?)",
             (name, content, _now()),
         )
+
+    def _insert_tags(self, name: str, tags: tuple[str, ...]) -> None:
+        self._conn.executemany(
+            "INSERT INTO skill_tags (name, tag) VALUES (?, ?)",
+            [(name, tag) for tag in tags],
+        )
+
+    def _tags_for(self, name: str) -> tuple[str, ...]:
+        rows = self._conn.execute(
+            "SELECT tag FROM skill_tags WHERE name = ? ORDER BY tag", (name,)
+        ).fetchall()
+        return tuple(r["tag"] for r in rows)
+
+    def _tags_by_name(self) -> dict[str, tuple[str, ...]]:
+        rows = self._conn.execute(
+            "SELECT name, tag FROM skill_tags ORDER BY name, tag"
+        ).fetchall()
+        grouped: dict[str, tuple[str, ...]] = {}
+        for r in rows:
+            grouped[r["name"]] = grouped.get(r["name"], ()) + (r["tag"],)
+        return grouped

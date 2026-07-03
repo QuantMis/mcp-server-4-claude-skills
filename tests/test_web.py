@@ -15,7 +15,7 @@ from skills_mcp.web import create_web_app
 
 @pytest.fixture()
 async def web_client(repo):
-    repo.register("alpha", "First skill", "# Alpha\n\nDo the thing.")
+    repo.register("alpha", "First skill", "# Alpha\n\nDo the thing.", tags=["ops"])
     repo.register("beta", "Second skill", "## Beta steps")
     app = create_web_app(repo)
     transport = httpx.ASGITransport(app=app)
@@ -53,3 +53,14 @@ async def test_api_get_unknown_returns_404(web_client):
     resp = await web_client.get("/api/skills/does-not-exist")
     assert resp.status_code == 404
     assert "error" in resp.json()
+
+
+async def test_api_list_includes_tags(web_client):
+    resp = await web_client.get("/api/skills")
+    tags = {d["name"]: d["tags"] for d in resp.json()}
+    assert tags == {"alpha": ["ops"], "beta": []}
+
+
+async def test_api_get_includes_tags(web_client):
+    resp = await web_client.get("/api/skills/alpha")
+    assert resp.json()["tags"] == ["ops"]

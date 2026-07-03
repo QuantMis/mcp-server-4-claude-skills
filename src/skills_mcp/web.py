@@ -7,8 +7,8 @@ never any write path. Markdown is rendered and sanitised client-side.
 
 Routes:
 * ``GET /ui``                  — the single-page viewer (HTML shell).
-* ``GET /api/skills``          — lightweight catalogue (name + description).
-* ``GET /api/skills/{name}``   — full skill (name, description, content, timestamp).
+* ``GET /api/skills``          — lightweight catalogue (name, description, tags).
+* ``GET /api/skills/{name}``   — full skill (name, description, content, timestamp, tags).
 """
 
 from __future__ import annotations
@@ -29,7 +29,10 @@ def create_web_app(repo: SkillRepository) -> Starlette:
 
     async def api_list(_request: Request) -> Response:
         return JSONResponse(
-            [{"name": s.name, "description": s.description} for s in repo.list()]
+            [
+                {"name": s.name, "description": s.description, "tags": list(s.tags)}
+                for s in repo.list()
+            ]
         )
 
     async def api_get(request: Request) -> Response:
@@ -46,6 +49,7 @@ def create_web_app(repo: SkillRepository) -> Starlette:
                 "description": skill.description,
                 "content": skill.content,
                 "updated_at": skill.updated_at,
+                "tags": list(skill.tags),
             }
         )
 
@@ -93,6 +97,13 @@ _PAGE = """<!doctype html>
     background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
     color: var(--text); font-size: 13px;
   }
+  #tagbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
+  .tag {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--code-bg);
+    color: var(--muted); font-size: 11px; cursor: pointer; user-select: none;
+  }
+  .tag.active { border-color: var(--accent); color: var(--accent); }
   #list { list-style: none; margin: 0; padding: 0 8px 16px; overflow-y: auto; }
   #list li {
     padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 2px;
@@ -104,6 +115,8 @@ _PAGE = """<!doctype html>
     color: var(--muted); font-size: 12px; margin-top: 2px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  #list li .tags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+  #list li .tags .tag { cursor: default; }
   main { flex: 1; overflow-y: auto; padding: 32px 40px; }
   main .meta { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
   #content { max-width: 820px; }
@@ -127,6 +140,7 @@ _PAGE = """<!doctype html>
     <p>Read-only viewer</p>
   </header>
   <input id="search" type="search" placeholder="Filter skills…" autocomplete="off">
+  <div id="tagbar"></div>
   <ul id="list"></ul>
 </aside>
 <main>
@@ -136,10 +150,28 @@ _PAGE = """<!doctype html>
 <script>
   const listEl = document.getElementById('list');
   const searchEl = document.getElementById('search');
+  const tagbarEl = document.getElementById('tagbar');
   const contentEl = document.getElementById('content');
   const metaEl = document.getElementById('meta');
   let skills = [];
   let active = null;
+  let activeTag = null;
+
+  function renderTagbar() {
+    tagbarEl.innerHTML = '';
+    const tags = [...new Set(skills.flatMap(s => s.tags || []))].sort();
+    for (const tag of tags) {
+      const el = document.createElement('span');
+      el.className = 'tag' + (tag === activeTag ? ' active' : '');
+      el.textContent = tag;
+      el.addEventListener('click', () => {
+        activeTag = tag === activeTag ? null : tag;
+        renderTagbar();
+        render(filtered());
+      });
+      tagbarEl.appendChild(el);
+    }
+  }
 
   function render(items) {
     listEl.innerHTML = '';
@@ -161,6 +193,17 @@ _PAGE = """<!doctype html>
       desc.className = 'desc';
       desc.textContent = s.description || '';
       li.append(name, desc);
+      if ((s.tags || []).length) {
+        const tags = document.createElement('div');
+        tags.className = 'tags';
+        for (const tag of s.tags) {
+          const chip = document.createElement('span');
+          chip.className = 'tag';
+          chip.textContent = tag;
+          tags.appendChild(chip);
+        }
+        li.appendChild(tags);
+      }
       li.addEventListener('click', () => open(s.name));
       listEl.appendChild(li);
     }
@@ -175,7 +218,8 @@ _PAGE = """<!doctype html>
       const resp = await fetch('/api/skills/' + encodeURIComponent(name));
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const skill = await resp.json();
-      metaEl.textContent = skill.description + '  ·  updated ' + skill.updated_at;
+      const tagSuffix = (skill.tags || []).length ? '  ·  ' + skill.tags.join(', ') : '';
+      metaEl.textContent = skill.description + tagSuffix + '  ·  updated ' + skill.updated_at;
       const html = marked.parse(skill.content || '');
       contentEl.innerHTML = DOMPurify.sanitize(html);
     } catch (err) {
@@ -186,10 +230,13 @@ _PAGE = """<!doctype html>
 
   function filtered() {
     const q = searchEl.value.trim().toLowerCase();
-    if (!q) return skills;
-    return skills.filter(s =>
+    let items = skills;
+    if (activeTag) items = items.filter(s => (s.tags || []).includes(activeTag));
+    if (!q) return items;
+    return items.filter(s =>
       s.name.toLowerCase().includes(q) ||
-      (s.description || '').toLowerCase().includes(q));
+      (s.description || '').toLowerCase().includes(q) ||
+      (s.tags || []).some(t => t.includes(q)));
   }
 
   searchEl.addEventListener('input', () => render(filtered()));
@@ -198,6 +245,7 @@ _PAGE = """<!doctype html>
     try {
       const resp = await fetch('/api/skills');
       skills = await resp.json();
+      renderTagbar();
       render(skills);
     } catch (err) {
       listEl.innerHTML = '<li style="color:var(--muted)">Failed to load skills</li>';

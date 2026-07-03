@@ -25,9 +25,10 @@ from .repository import (
 SERVER_NAME = "centralised-claude-skills"
 
 _LIST_DESC = (
-    "Returns the catalogue of available reusable skills (name + one-line "
-    "summary only). Call this at the start of any non-trivial task to check "
-    "for relevant guidance before proceeding."
+    "Returns the catalogue of available reusable skills (name, one-line "
+    "summary, and tags only). Call this at the start of any non-trivial task "
+    "to check for relevant guidance before proceeding. Pass the optional "
+    "'tag' argument to narrow the catalogue to one group of skills."
 )
 _GET_DESC = (
     "Returns the full instruction text for one skill by name. Call this after "
@@ -47,6 +48,13 @@ _UPDATE_DESC = (
 _REVERT_DESC = (
     "Restores the most recent prior version of a skill (undoes the last "
     "update). Confirm with the user before calling."
+)
+_SET_TAGS_DESC = (
+    "Replaces the full tag set of an existing skill. Tags are lowercase "
+    "labels used to group and filter skills in list_skills (e.g. 'codebase', "
+    "'planka'). Pass the complete desired set — tags omitted from the list "
+    "are removed. Prefer reusing tags already present in the catalogue over "
+    "inventing near-duplicates."
 )
 
 
@@ -72,9 +80,14 @@ def create_mcp(
     mcp = FastMCP(SERVER_NAME, transport_security=transport_security)
 
     @mcp.tool(name="list_skills", description=_LIST_DESC)
-    def list_skills() -> list[dict[str, str]]:
+    def list_skills(tag: str | None = None) -> list[dict[str, object]]:
+        try:
+            summaries = repo.list(tag=tag)
+        except ValueError as exc:
+            raise ToolError(str(exc))
         return [
-            {"name": s.name, "description": s.description} for s in repo.list()
+            {"name": s.name, "description": s.description, "tags": list(s.tags)}
+            for s in summaries
         ]
 
     @mcp.tool(name="get_skill", description=_GET_DESC)
@@ -86,9 +99,14 @@ def create_mcp(
         return {"name": skill.name, "content": skill.content}
 
     @mcp.tool(name="register_skill", description=_REGISTER_DESC)
-    def register_skill(name: str, description: str, content: str) -> dict[str, bool]:
+    def register_skill(
+        name: str,
+        description: str,
+        content: str,
+        tags: list[str] | None = None,
+    ) -> dict[str, bool]:
         try:
-            repo.register(name, description, content)
+            repo.register(name, description, content, tags=tags)
         except DuplicateSkillError:
             raise ToolError(
                 f"A skill named {name!r} already exists. Use update_skill to change it."
@@ -117,6 +135,16 @@ def create_mcp(
             raise ToolError(f"No skill named {name!r}.")
         except NoPriorVersionError:
             raise ToolError(f"Skill {name!r} has no prior version to revert to.")
+        return {"ok": True}
+
+    @mcp.tool(name="set_skill_tags", description=_SET_TAGS_DESC)
+    def set_skill_tags(name: str, tags: list[str]) -> dict[str, bool]:
+        try:
+            repo.set_tags(name, tags)
+        except SkillNotFoundError:
+            raise ToolError(f"No skill named {name!r}. Call list_skills to see options.")
+        except ValueError as exc:
+            raise ToolError(str(exc))
         return {"ok": True}
 
     return mcp
